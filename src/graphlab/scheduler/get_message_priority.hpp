@@ -24,6 +24,7 @@
 #define GRAPHLAB_SCHEDULER_GET_MESSAGE_PRIORITY_HPP
 
 #include <boost/type_traits.hpp>
+#include <boost/utility/enable_if.hpp>
 #include <typeinfo>
 
 namespace graphlab {

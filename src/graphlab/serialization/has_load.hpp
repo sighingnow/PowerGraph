@@ -26,6 +26,7 @@
 
 #include <typeinfo>
 
+#include <boost/utility/enable_if.hpp>
 
 namespace graphlab {
   namespace archive_detail {

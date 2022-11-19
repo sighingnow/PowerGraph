@@ -24,6 +24,7 @@
 #ifndef GRAPHLAB_IS_POD_HPP
 #define GRAPHLAB_IS_POD_HPP
 #include <boost/type_traits.hpp>
+#include <boost/type_traits/detail/ice_or.hpp>
 
 namespace graphlab {
 

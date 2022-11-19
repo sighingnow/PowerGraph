@@ -15,6 +15,7 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 # TODO: what is this used by
 set(BUILD_SHARED_LIBS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CheckLibraryExists)
 include(CheckFunctionExists)
@@ -46,7 +47,11 @@ if(NO_OPENMP)
   add_definitions(-D__NO_OPENMP__)
 else()
   set(OPENMP_C_FLAGS "-fopenmp")
-  set(OPENMP_LIBRARIES "gomp")
+  if (APPLE)
+    set(OPENMP_LIBRARIES "-fopenmp")
+  else()
+    set(OPENMP_LIBRARIES "gomp")
+  endif()
 endif()
 
 if (APPLE)
@@ -61,10 +66,10 @@ if(CPP11)
   set(CPP11_FLAGS "-std=c++11 -Wno-enum-compare -Wno-conversion-null")
 endif()
 
-if(VID32)
-  message(STATUS "Using 32bit vertex id types")
-  add_definitions(-DUSE_VID32)
-endif()
+# if(VID32)
+#   message(STATUS "Using 32bit vertex id types")
+#   add_definitions(-DUSE_VID32)
+# endif()
 
 
 # Shared compiler flags used by all builds (debug, profile, release)
@@ -78,7 +83,7 @@ endif()
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,${GraphLab_SOURCE_DIR}/deps/local/lib")
 
 # Set subdirectories
-subdirs(src tests demoapps toolkits)
+subdirs(src)
 if(EXPERIMENTAL)
   if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/experimental)
     subdirs(experimental)
@@ -146,33 +151,34 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
 # our servers since the eigen servers use SSL which is not supported
 # by cmake DOWNLOAD_COMMAND hg clone
 # https://bitbucket.org/eigen/eigen/
-ExternalProject_Add(eigen
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  URL http://bitbucket.org/eigen/eigen/get/3.1.2.tar.bz2
-  URL_MD5 e9c081360dde5e7dcb8eba3c8430fde2
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  BUILD_IN_SOURCE 1
-  INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
-add_definitions(-DHAS_EIGEN)
+# ExternalProject_Add(eigen
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
+#   URL http://bitbucket.org/eigen/eigen/get/3.1.2.tar.bz2
+#   URL_MD5 e9c081360dde5e7dcb8eba3c8430fde2
+#   CONFIGURE_COMMAND ""
+#   BUILD_COMMAND ""
+#   BUILD_IN_SOURCE 1
+#   INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
+
+# add_definitions(-DHAS_EIGEN)
 
 macro(requires_eigen NAME)
   add_dependencies(${NAME} eigen)
 endmacro(requires_eigen)
 
 
-# libbz  =================================================================
-ExternalProject_Add(libbz2
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
-  URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-  URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/libbz2_fpic.patch || true
-  BUILD_IN_SOURCE 1
-  BUILD_COMMAND make install PREFIX=<INSTALL_DIR>
-  INSTALL_COMMAND "" )
+# # libbz  =================================================================
+# ExternalProject_Add(libbz2
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
+#   URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+#   URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#   CONFIGURE_COMMAND ""
+#   PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/libbz2_fpic.patch || true
+#   BUILD_IN_SOURCE 1
+#   BUILD_COMMAND make install PREFIX=<INSTALL_DIR>
+#   INSTALL_COMMAND "" )
 
 
 
@@ -183,7 +189,7 @@ ExternalProject_Add(libbz2
 # unordered containers.
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "http://tcpdiag.dl.sourceforge.net/project/boost/boost/1.53.0/boost_1_53_0.tar.gz" 
+  URL "https://sourceforge.net/projects/boost/files/boost/1.53.0/boost_1_53_0.tar.gz" 
   URL_MD5 57a9e2047c0f511c4dfcf00eb5eb2fbb
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND
@@ -213,6 +219,8 @@ set(Boost_LIBRARIES
   ${BOOST_LIBS_DIR}/libboost_context.a
   ${BOOST_LIBS_DIR}/libboost_date_time.a)
 add_dependencies(boost libbz2)
+
+# find_package(Boost REQUIRED)
 message(STATUS "Boost libs: " ${Boost_LIBRARIES})
 # add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
 # add_definitions(-DBOOST_ALL_DYN_LINK)
@@ -225,7 +233,7 @@ foreach(blib ${Boost_LIBRARIES})
 endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
-if(NOT NO_TCMALLOC)
+if(FALSE AND NOT NO_TCMALLOC)
     if(APPLE)
     set (tcmalloc_shared "--enable-shared=yes")
     else()
@@ -307,15 +315,15 @@ endif()
 #  add_dependencies(${NAME} imagemagick libjpeg)
 # endmacro(requires_imagemagick)
 
-# OpenCV =================================================================
-ExternalProject_Add(opencv
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
-  URL http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
-  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-  PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DWITH_OPENCL=OFF -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+# # OpenCV =================================================================
+# ExternalProject_Add(opencv
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
+#   URL http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
+#   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+#   PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
+#   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+#   -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DWITH_OPENCL=OFF -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 # add_dependencies(opencv eigen)
 
@@ -340,28 +348,55 @@ endmacro(requires_opencv)
 #   link_libraries(z)
 # endif()
 
+
+find_path     (LIBEVENT_INCLUDE_DIR NAMES event.h)
+find_library  (LIBEVENT_LIBRARY     NAMES event)
+find_library  (LIBEVENT_CORE        NAMES event_core)
+find_library  (LIBEVENT_EXTRA       NAMES event_extra)
+if (NOT EVHTP_DISABLE_EVTHR)
+    find_library (LIBEVENT_THREAD   NAMES event_pthreads)
+endif()
+if (NOT EVHTP_DISABLE_SSL)
+    find_library (LIBEVENT_SSL      NAMES event_openssl)
+endif()
+include (FindPackageHandleStandardArgs)
+set (LIBEVENT_INCLUDE_DIRS ${LIBEVENT_INCLUDE_DIR})
+set (LIBEVENT_LIBRARIES
+        ${LIBEVENT_LIBRARY}
+        ${LIBEVENT_SSL}
+        ${LIBEVENT_CORE}
+        ${LIBEVENT_EXTRA}
+        ${LIBEVENT_THREAD}
+        ${LIBEVENT_EXTRA})
+    find_package_handle_standard_args (LIBEVENT DEFAULT_MSG LIBEVENT_LIBRARIES LIBEVENT_INCLUDE_DIR)
+mark_as_advanced(LIBEVENT_INCLUDE_DIRS LIBEVENT_LIBRARIES)
+
+include_directories(${LIBEVENT_INCLUDE_DIRS})
+link_libraries(${LIBEVENT_LIBRARIES})
+
 # libevent ====================================================================
 # LibEvent is used in the RPC layer to manage the interaction between the
 # TCP stack and the event handler threads
 
-if (APPLE)
-  ExternalProject_Add(libevent
-    PREFIX ${GraphLab_SOURCE_DIR}/deps/event
-    URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
-    URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
-    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  )
-else()
-  ExternalProject_Add(libevent
-    PREFIX ${GraphLab_SOURCE_DIR}/deps/event
-    URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
-    URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
-    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-    INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install && ${GraphLab_SOURCE_DIR}/patches/libevent_clean_and_remap.sh <INSTALL_DIR>/lib
-  )
-endif()
+# if (APPLE)
+#   ExternalProject_Add(libevent
+#     PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+#     URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+#     URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+#     CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
+#     INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#   )
+# else()
+#   ExternalProject_Add(libevent
+#     PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+#     URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+#     URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+#     CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
+#     INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#     INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install && ${GraphLab_SOURCE_DIR}/patches/libevent_clean_and_remap.sh <INSTALL_DIR>/lib
+#   )
+# endif()
+
 #link_libraries(event)
 #link_libraries(event_pthreads)
 
@@ -386,7 +421,7 @@ endif()
 
 ExternalProject_Add(zookeeper
   PREFIX ${GraphLab_SOURCE_DIR}/deps/zookeeper
-  URL http://mirror.metrocast.net/apache/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz
+  URL https://archive.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz
   URL_MD5 d85f9751724d3f20f792803b61c4db24
   PATCH_COMMAND ${CMAKE_COMMAND} -E copy_directory ${GraphLab_SOURCE_DIR}/patches/zookeeper/ <SOURCE_DIR>
   BUILD_IN_SOURCE 1
@@ -398,7 +433,7 @@ ExternalProject_Add(zookeeper
 # We use JNI for jvm interfacing and for hdfs support.  We currently only
 # detect the presence of java and do not install our own version.
 
-if(NOT NO_JAVAC)
+if(FALSE AND NOT NO_JAVAC)
   find_package(Java)
   find_package(JNI)
 
@@ -461,13 +496,13 @@ else()
   #find_package(MPICH2)
   find_package(MPI) 
   if(MPI_FOUND)
+    set(MPI_EXTRA_LIBRARY)
     message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
     add_definitions(-DHAS_MPI)
     include_directories(${MPI_INCLUDE_PATH})
   else(MPI_FOUND)
     message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
     set(MPI_LIBRARY "")
-    set(MPI_EXTRA_LIBRARY "")
     # ExternalProject_Add(openmpi
     #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
     #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
@@ -495,7 +530,7 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME}
     ${Boost_LIBRARIES}
     z
-    event event_pthreads
+    ${LIBEVENT_LIBRARIES}
     zookeeper_mt)
   add_dependencies(${NAME} boost libevent zookeeper)
   if(MPI_FOUND)

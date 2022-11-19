@@ -102,12 +102,20 @@ namespace graphlab {
           const std::string& textline) {
       if (textline.empty()) return true;
       size_t split = textline.find_first_of(",");
-      if (split == std::string::npos) return true;
+      size_t rsplit = textline.find_last_of(",");
+      if (split == std::string::npos || rsplit == std::string::npos) return true;
       else {
         std::string t = textline;
         t[split] = 0;
-        graph.add_edge(strtoul(t.c_str(), NULL, 10), 
-            strtoul(t.c_str() + split + 1, NULL, 10));
+        t[rsplit] = 0;
+        if (split == rsplit) {
+          graph.add_edge(strtoul(t.c_str(), NULL, 10), 
+                         strtoul(t.c_str() + split + 1, NULL, 10));
+        } else {
+          graph.add_edge(strtoul(t.c_str(), NULL, 10), 
+                         strtoul(t.c_str() + split + 1, NULL, 10),
+                         std::strtod(t.c_str() + rsplit + 1, NULL));
+        }
         return true;
       }
     }
